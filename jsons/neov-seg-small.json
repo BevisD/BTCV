@@ -1,0 +1,108 @@
+{
+  "description": "neov",
+  "numTrain": 16,
+  "numTest": 4,
+  "numValidate": 4,
+  "test": [
+    {
+      "image": "post_treatment/images/case_203.nii.gz",
+      "label": "post_treatment/segmentations/case_203.nii.gz"
+    },
+    {
+      "image": "post_treatment/images/case_178.nii.gz",
+      "label": "post_treatment/segmentations/case_178.nii.gz"
+    },
+    {
+      "image": "post_treatment/images/case_265.nii.gz",
+      "label": "post_treatment/segmentations/case_265.nii.gz"
+    },
+    {
+      "image": "post_treatment/images/case_213.nii.gz",
+      "label": "post_treatment/segmentations/case_213.nii.gz"
+    }
+  ],
+  "training": [
+    {
+      "image": "pre_treatment/images/case_133.nii.gz",
+      "label": "pre_treatment/segmentations/case_133.nii.gz"
+    },
+    {
+      "image": "pre_treatment/images/case_086.nii.gz",
+      "label": "pre_treatment/segmentations/case_086.nii.gz"
+    },
+    {
+      "image": "post_treatment/images/case_247.nii.gz",
+      "label": "post_treatment/segmentations/case_247.nii.gz"
+    },
+    {
+      "image": "post_treatment/images/case_208.nii.gz",
+      "label": "post_treatment/segmentations/case_208.nii.gz"
+    },
+    {
+      "image": "pre_treatment/images/case_083.nii.gz",
+      "label": "pre_treatment/segmentations/case_083.nii.gz"
+    },
+    {
+      "image": "post_treatment/images/case_182.nii.gz",
+      "label": "post_treatment/segmentations/case_182.nii.gz"
+    },
+    {
+      "image": "post_treatment/images/case_209.nii.gz",
+      "label": "post_treatment/segmentations/case_209.nii.gz"
+    },
+    {
+      "image": "post_treatment/images/case_255.nii.gz",
+      "label": "post_treatment/segmentations/case_255.nii.gz"
+    },
+    {
+      "image": "pre_treatment/images/case_127.nii.gz",
+      "label": "pre_treatment/segmentations/case_127.nii.gz"
+    },
+    {
+      "image": "pre_treatment/images/case_016.nii.gz",
+      "label": "pre_treatment/segmentations/case_016.nii.gz"
+    },
+    {
+      "image": "post_treatment/images/case_239.nii.gz",
+      "label": "post_treatment/segmentations/case_239.nii.gz"
+    },
+    {
+      "image": "pre_treatment/images/case_135.nii.gz",
+      "label": "pre_treatment/segmentations/case_135.nii.gz"
+    },
+    {
+      "image": "post_treatment/images/case_158.nii.gz",
+      "label": "post_treatment/segmentations/case_158.nii.gz"
+    },
+    {
+      "image": "post_treatment/images/case_241.nii.gz",
+      "label": "post_treatment/segmentations/case_241.nii.gz"
+    },
+    {
+      "image": "pre_treatment/images/case_098.nii.gz",
+      "label": "pre_treatment/segmentations/case_098.nii.gz"
+    },
+    {
+      "image": "post_treatment/images/case_185.nii.gz",
+      "label": "post_treatment/segmentations/case_185.nii.gz"
+    }
+  ],
+  "validation": [
+    {
+      "image": "pre_treatment/images/case_091.nii.gz",
+      "label": "pre_treatment/segmentations/case_091.nii.gz"
+    },
+    {
+      "image": "post_treatment/images/case_233.nii.gz",
+      "label": "post_treatment/segmentations/case_233.nii.gz"
+    },
+    {
+      "image": "pre_treatment/images/case_038.nii.gz",
+      "label": "pre_treatment/segmentations/case_038.nii.gz"
+    },
+    {
+      "image": "post_treatment/images/case_259.nii.gz",
+      "label": "post_treatment/segmentations/case_259.nii.gz"
+    }
+  ]
+}
