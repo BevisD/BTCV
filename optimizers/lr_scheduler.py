@@ -29,7 +29,7 @@ class _LRSchedulerMONAI(_LRScheduler):
         Args:
             optimizer: wrapped optimizer.
             end_lr: the final learning rate.
-            num_iter: the number of iterations over which the test occurs.
+            num_iter: the number of iterations over which the E74B4 occurs.
             last_epoch: the index of last epoch.
         Returns:
             None

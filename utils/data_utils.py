@@ -17,7 +17,7 @@ import torch
 
 from monai import data, transforms
 from monai.data import load_decathlon_datalist
-from monai.transforms import AsDiscrete
+from typing import Sequence
 
 
 class Sampler(torch.utils.data.Sampler):
@@ -68,15 +68,34 @@ class Sampler(torch.utils.data.Sampler):
 
 
 class SelectChannelTransformd(transforms.MapTransform):
-    def __init__(self, keys, channels, allow_missing_keys=False):
+    """
+    Transformation object that only sets every value to 0 except for
+    values within channels
+    """
+    def __init__(self, keys: Sequence[str],
+                 channels: Sequence[int] | int,
+                 allow_missing_keys=False) -> None:
         super().__init__(keys=keys, allow_missing_keys=allow_missing_keys)
-        self.channels = channels
+        self.channels = torch.Tensor(channels)
 
-    def __call__(self, data):
+    def __call__(self, data: dict) -> dict:
         for key in self.keys:
             if key in data:
-                mask = np.isin(data[key], self.channels)
+                mask = torch.isin(data[key], self.channels)
                 data[key] = mask * data[key]
+            else:
+                raise ValueError(f"Key '{key}' is not in data")
+        return data
+
+
+class AddChanneld(transforms.MapTransform):
+    def __init__(self, keys: list[str], allow_missing_keys=False) -> None:
+        super().__init__(keys=keys, allow_missing_keys=allow_missing_keys)
+
+    def __call__(self, data: dict) -> dict:
+        for key in self.keys:
+            if key in data:
+                data[key] = data[key].view(1, *data[key].shape)
             else:
                 raise ValueError(f"Key '{key}' is not in data")
         return data
@@ -85,63 +104,76 @@ class SelectChannelTransformd(transforms.MapTransform):
 def get_loader(args):
     data_dir = args.data_dir
     datalist_json = os.path.join(data_dir, args.json_list)
+
+    image_only = True
+    if "image_only" in vars(args):
+        image_only = args.image_only
+
+    # img_keys = ["pre-image", "post-image"]
+    # seg_keys = ["pre-label", "post-label"]
+    img_keys = ["image"]
+    seg_keys = ["label"]
+    all_keys = img_keys + seg_keys
+
     train_transform = transforms.Compose(
         [
-            transforms.LoadImaged(keys=["image", "label"]),
-            SelectChannelTransformd(keys=["label"], channels=[1]),
-            transforms.AddChanneld(keys=["image", "label"]),
-            transforms.Orientationd(keys=["image", "label"], axcodes="RAS"),
-            transforms.Spacingd(
-                keys=["image", "label"], pixdim=(args.space_x, args.space_y, args.space_z), mode=("bilinear", "nearest")
-            ),
+            transforms.LoadImaged(keys=all_keys),
+            SelectChannelTransformd(keys=seg_keys, channels=[1]),
+            AddChanneld(keys=all_keys),
+            transforms.Orientationd(keys=all_keys, axcodes="RAS"),
+            transforms.Spacingd(keys=all_keys,
+                                pixdim=(args.space_x, args.space_y, args.space_z),
+                                mode=("bilinear", "nearest")),
             transforms.ScaleIntensityRanged(
-                keys=["image"], a_min=args.a_min, a_max=args.a_max, b_min=args.b_min, b_max=args.b_max, clip=True
+                keys=img_keys, a_min=args.a_min, a_max=args.a_max, b_min=args.b_min, b_max=args.b_max, clip=True
             ),
-            transforms.CropForegroundd(keys=["image", "label"], source_key="image"),
-            # Augmentation
+            # CROP HERE?
             transforms.RandSpatialCropSamplesd(
-                keys=["image", "label"],
+                keys=all_keys,
                 roi_size=(args.roi_x, args.roi_y, args.roi_z),
                 random_size=False,
                 num_samples=4,
             ),
-            transforms.RandFlipd(keys=["image", "label"], prob=args.RandFlipd_prob, spatial_axis=0),
-            transforms.RandFlipd(keys=["image", "label"], prob=args.RandFlipd_prob, spatial_axis=1),
-            transforms.RandFlipd(keys=["image", "label"], prob=args.RandFlipd_prob, spatial_axis=2),
-            transforms.RandRotate90d(keys=["image", "label"], prob=args.RandRotate90d_prob, max_k=3),
-            transforms.RandScaleIntensityd(keys="image", factors=0.1, prob=args.RandScaleIntensityd_prob),
-            transforms.RandShiftIntensityd(keys="image", offsets=0.1, prob=args.RandShiftIntensityd_prob),
-            transforms.ToTensord(keys=["image", "label"]),
+            transforms.RandFlipd(keys=all_keys, prob=args.RandFlipd_prob, spatial_axis=0),
+            transforms.RandFlipd(keys=all_keys, prob=args.RandFlipd_prob, spatial_axis=1),
+            transforms.RandFlipd(keys=all_keys, prob=args.RandFlipd_prob, spatial_axis=2),
+            transforms.RandRotate90d(keys=all_keys, prob=args.RandRotate90d_prob, max_k=3),
+            transforms.RandScaleIntensityd(keys=img_keys, factors=0.1, prob=args.RandScaleIntensityd_prob),
+            transforms.RandShiftIntensityd(keys=img_keys, offsets=0.1, prob=args.RandShiftIntensityd_prob),
+            transforms.ToTensord(keys=all_keys),
         ]
     )
     val_transform = transforms.Compose(
         [
-            transforms.LoadImaged(keys=["image", "label"]),
-            SelectChannelTransformd(keys=["label"], channels=[1]),
-            transforms.AddChanneld(keys=["image", "label"]),
-            transforms.Orientationd(keys=["image", "label"], axcodes="RAS"),
-            transforms.Spacingd(
-                keys=["image", "label"], pixdim=(args.space_x, args.space_y, args.space_z), mode=("bilinear", "nearest")
-            ),
+            transforms.LoadImaged(keys=all_keys),
+            SelectChannelTransformd(keys=seg_keys, channels=[1]),
+            AddChanneld(keys=all_keys),
+            transforms.Orientationd(keys=all_keys, axcodes="RAS"),
+            transforms.Spacingd(keys=img_keys,
+                                pixdim=(args.space_x, args.space_y, args.space_z),
+                                mode=("bilinear", "nearest")),
             transforms.ScaleIntensityRanged(
-                keys=["image"], a_min=args.a_min, a_max=args.a_max, b_min=args.b_min, b_max=args.b_max, clip=True
+                keys=img_keys, a_min=args.a_min, a_max=args.a_max, b_min=args.b_min, b_max=args.b_max, clip=True
             ),
-            transforms.CropForegroundd(keys=["image", "label"], source_key="image"),
-            transforms.ToTensord(keys=["image", "label"]),
+            # CROP HERE?
+            transforms.ToTensord(keys=all_keys),
         ]
     )
 
     test_transform = transforms.Compose(
         [
-            transforms.LoadImaged(keys=["image", "label"]),
-            SelectChannelTransformd(keys=["label"], channels=[1]),
-            transforms.AddChanneld(keys=["image", "label"]),
-            # transforms.Orientationd(keys=["image"], axcodes="RAS"),
-            transforms.Spacingd(keys="image", pixdim=(args.space_x, args.space_y, args.space_z), mode="bilinear"),
+            transforms.LoadImaged(keys=all_keys, image_only=image_only),
+            SelectChannelTransformd(keys=seg_keys, channels=[1]),
+            AddChanneld(keys=all_keys),
+            transforms.Orientationd(keys=all_keys, axcodes="RAS"),
+            transforms.Spacingd(keys=img_keys,
+                                pixdim=(args.space_x, args.space_y, args.space_z),
+                                mode="bilinear"),
             transforms.ScaleIntensityRanged(
-                keys=["image"], a_min=args.a_min, a_max=args.a_max, b_min=args.b_min, b_max=args.b_max, clip=True
+                keys=img_keys, a_min=args.a_min, a_max=args.a_max, b_min=args.b_min, b_max=args.b_max, clip=True
             ),
-            transforms.ToTensord(keys=["image", "label"]),
+            # CROP HERE?
+            transforms.ToTensord(keys=all_keys),
         ]
     )
 

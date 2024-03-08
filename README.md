@@ -161,7 +161,7 @@ To evaluate a `Swin UNETR` on a single GPU, place the model checkpoint in `pretr
 provide its name using `--pretrained_model_name`:
 
 ```bash
-python test.py --json_list=<jsons-path> --data_dir=<data-path> --feature_size=<feature-size>\
+python E74B4.py --json_list=<jsons-path> --data_dir=<data-path> --feature_size=<feature-size>\
 --infer_overlap=0.5 --pretrained_model_name=<model-name>
 ```
 

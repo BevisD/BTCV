@@ -14,8 +14,12 @@ def parse_args():
     parser.add_argument("--data-dir", default="./", type=str, help="json file to store patient data")
     parser.add_argument("--shuffle", action="store_true", help="shuffle the data or not")
     parser.add_argument("--num-train", type=int, help="number of training datapoints", required=True)
-    parser.add_argument("--num-test", type=int, help="number of testing datapoints", required=True)
+    parser.add_argument("--num-E74B4", type=int, help="number of testing datapoints", required=True)
     parser.add_argument("--data-name", default="neov", help="name of the dataset")
+    parser.add_argument("--pre-dir", default="pre_treatment", type=str)
+    parser.add_argument("--post-dir", default="post_treatment", type=str)
+    parser.add_argument("--image-dir", default="images", type=str)
+    parser.add_argument("--label-dir", default="segmentations", type=str)
 
     args = parser.parse_args()
     return args
@@ -47,11 +51,11 @@ def main(args):
 
             # Assumes there are pre_treatment and post_treatment folders
             # Each folder has images and segmentations
-            pre_img_path = os.path.join("pre_treatment/images", pre_filename)
-            pre_seg_path = os.path.join("pre_treatment/segmentations", pre_filename)
+            pre_img_path = os.path.join(args["pre_dir"], args["image_dir"], pre_filename)
+            pre_seg_path = os.path.join(args["pre_dir"], args["label_dir"], pre_filename)
 
-            post_img_path = os.path.join("post_treatment/images", post_filename)
-            post_seg_path = os.path.join("post_treatment/segmentations", post_filename)
+            post_img_path = os.path.join(args["post_dir"], args["image_dir"], post_filename)
+            post_seg_path = os.path.join(args["post_dir"], args["label_dir"], post_filename)
 
             pre_img_seg_pairs.append((pre_img_path, pre_seg_path))
             post_img_seg_pairs.append((post_img_path, post_seg_path))
@@ -69,7 +73,7 @@ def main(args):
     json_dict["numTest"] = len(test_pairs)
     json_dict["numValidate"] = len(val_pairs)
 
-    json_dict["test"] = [{"image": pair[0], "label": pair[1]} for pair in test_pairs]
+    json_dict["E74B4"] = [{"image": pair[0], "label": pair[1]} for pair in test_pairs]
     json_dict["training"] = [{"image": pair[0], "label": pair[1]} for pair in train_pairs]
     json_dict["validation"] = [{"image": pair[0], "label": pair[1]} for pair in val_pairs]
 

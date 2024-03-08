@@ -35,8 +35,7 @@ def train_epoch(model, loader, optimizer, scaler, epoch, loss_func, args):
         else:
             data, target = batch_data["image"], batch_data["label"]
         data, target = data.cuda(args.rank), target.cuda(args.rank)
-        for param in model.parameters():
-            param.grad = None
+
         with autocast(enabled=args.amp):
             logits = model(data)
             loss = loss_func(logits, target)
@@ -79,9 +78,9 @@ def val_epoch(model, loader, epoch, acc_func, args, model_inferer=None, post_lab
             data, target = data.cuda(args.rank), target.cuda(args.rank)
             with autocast(enabled=args.amp):
                 if model_inferer is not None:
-                    logits = model_inferer(data.requires_grad_())
+                    logits = model_inferer(data)
                 else:
-                    logits = model(data.requires_grad_())
+                    logits = model(data)
             if not logits.is_cuda:
                 target = target.cpu()
             val_labels_list = decollate_batch(target)
@@ -209,6 +208,7 @@ def run_training(
                     shutil.copyfile(os.path.join(args.logdir, "model_final.pt"), os.path.join(args.logdir, "model.pt"))
 
         if scheduler is not None:
+            print(scaler.get_scale())
             scheduler.step()
 
     print("Training Finished !, Best Accuracy: ", val_acc_max)

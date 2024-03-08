@@ -13,7 +13,6 @@ import argparse
 import os
 from functools import partial
 import warnings
-warnings.filterwarnings('error', category=UserWarning)
 
 import numpy as np
 import torch
@@ -34,7 +33,7 @@ from monai.utils.enums import MetricReduction
 
 parser = argparse.ArgumentParser(description="Swin UNETR segmentation pipeline")
 parser.add_argument("--checkpoint", default=None, help="start training from saved checkpoint")
-parser.add_argument("--logdir", default="test", type=str, help="directory to save the tensorboard logs")
+parser.add_argument("--logdir", default="E74B4", type=str, help="directory to save the tensorboard logs")
 parser.add_argument(
     "--pretrained_dir", default="./pretrained_models/", type=str, help="pretrained checkpoint directory"
 )
@@ -67,13 +66,13 @@ parser.add_argument("--feature_size", default=48, type=int, help="feature size")
 parser.add_argument("--in_channels", default=1, type=int, help="number of input channels")
 parser.add_argument("--out_channels", default=14, type=int, help="number of output channels")
 parser.add_argument("--use_normal_dataset", action="store_true", help="use monai Dataset class")
-parser.add_argument("--a_min", default=-175.0, type=float, help="a_min in ScaleIntensityRanged")
-parser.add_argument("--a_max", default=250.0, type=float, help="a_max in ScaleIntensityRanged")
+parser.add_argument("--a_min", default=-1220.0, type=float, help="a_min in ScaleIntensityRanged")
+parser.add_argument("--a_max", default=3500.0, type=float, help="a_max in ScaleIntensityRanged")
 parser.add_argument("--b_min", default=0.0, type=float, help="b_min in ScaleIntensityRanged")
 parser.add_argument("--b_max", default=1.0, type=float, help="b_max in ScaleIntensityRanged")
-parser.add_argument("--space_x", default=1.5, type=float, help="spacing in x direction")
-parser.add_argument("--space_y", default=1.5, type=float, help="spacing in y direction")
-parser.add_argument("--space_z", default=2.0, type=float, help="spacing in z direction")
+parser.add_argument("--space_x", default=1.0, type=float, help="spacing in x direction")
+parser.add_argument("--space_y", default=1.0, type=float, help="spacing in y direction")
+parser.add_argument("--space_z", default=1.0, type=float, help="spacing in z direction")
 parser.add_argument("--roi_x", default=96, type=int, help="roi size in x direction")
 parser.add_argument("--roi_y", default=96, type=int, help="roi size in y direction")
 parser.add_argument("--roi_z", default=96, type=int, help="roi size in z direction")
@@ -126,6 +125,13 @@ def main_worker(gpu, args):
     print(args.rank, " gpu", args.gpu)
     if args.rank == 0:
         print("Batch size is:", args.batch_size, "epochs", args.max_epochs)
+        print("Learning rate:", args.optim_lr)
+        print("a_min:", args.a_min, "a_max:", args.a_max)
+        print("b_min:", args.b_min, "b_max:", args.b_max)
+        print(f"Pix-dim: ({args.space_x:.2f}, {args.space_y:.2f}, {args.space_z}:2f)")
+        print(f"Dropout: {args.dropout_rate}")
+        print(f"Warmup Epochs: {args.warmup_epochs}")
+        print(f"Squared Dice: {args.squared_dice}")
     inf_size = [args.roi_x, args.roi_y, args.roi_z]
 
     # Loading Pretrained Model
@@ -171,10 +177,11 @@ def main_worker(gpu, args):
     # Defining loss functions
     if args.squared_dice:
         dice_loss = DiceCELoss(
-            to_onehot_y=True, softmax=True, squared_pred=True, smooth_nr=args.smooth_nr, smooth_dr=args.smooth_dr
+            include_background=True, to_onehot_y=True, softmax=True, squared_pred=True,
+            smooth_nr=args.smooth_nr, smooth_dr=args.smooth_dr
         )
     else:
-        dice_loss = DiceCELoss(to_onehot_y=True, softmax=True)
+        dice_loss = DiceCELoss(include_background=True, to_onehot_y=True, softmax=True)
 
     post_label = AsDiscrete(to_onehot=args.out_channels)
     post_pred = AsDiscrete(argmax=True, to_onehot=args.out_channels)
@@ -185,7 +192,7 @@ def main_worker(gpu, args):
         sliding_window_inference,
         roi_size=inf_size,
         sw_batch_size=args.sw_batch_size,
-        predictor=model,
+        predictor=model.requires_grad_(),
         overlap=args.infer_overlap,
     )
 
