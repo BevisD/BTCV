@@ -1,3 +1,6 @@
 pretrained_models/
 .venv
 runs/
+jsons/*.csv
+*.ini
+*.sh
