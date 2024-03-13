@@ -26,7 +26,7 @@ from monai.data import decollate_batch
 
 def train_epoch(model, loader, optimizer, scaler, epoch, loss_func, args):
     model.train()
-    start_time = time.time()
+    start_time = time.perf_counter()
     run_loss = AverageMeter()
     for idx, batch_data in enumerate(loader):
         optimizer.zero_grad()
@@ -37,13 +37,20 @@ def train_epoch(model, loader, optimizer, scaler, epoch, loss_func, args):
         data, target = data.cuda(args.rank), target.cuda(args.rank)
 
         with autocast(enabled=args.amp):
+            patch_infer_time = time.perf_counter()
             logits = model(data)
+            print(f"Path Infer Time: {time.perf_counter() - patch_infer_time}:.5f")
+            loss_time = time.perf_counter()
             loss = loss_func(logits, target)
+            print(f"Loss Time: {time.perf_counter() - loss_time}:.5f")
+
             #  ++++++++++++++++++++++++++++++++
             if args.amp:
+                scaler_time = time.perf_counter()
                 scaler.scale(loss).backward()
                 scaler.step(optimizer)
                 scaler.update()
+                print(f"Scaler Time: {time.perf_counter() - scaler_time}:.5f")
             else:
                 loss.backward()
                 optimizer.step()
@@ -59,16 +66,17 @@ def train_epoch(model, loader, optimizer, scaler, epoch, loss_func, args):
             print(
                 "Epoch {}/{} {}/{}".format(epoch, args.max_epochs, idx, len(loader)),
                 "loss: {:.4f}".format(run_loss.avg),
-                "time {:.2f}s".format(time.time() - start_time),
+                "time {:.2f}s".format(time.perf_counter() - start_time),
             )
-        start_time = time.time()
+        start_time = time.perf_counter()
     return run_loss.avg
 
 
-def val_epoch(model, loader, epoch, acc_func, args, model_inferer=None, post_label=None, post_pred=None):
+def val_epoch(model, loader, epoch, acc_func, loss_func, args, model_inferer=None, post_label=None, post_pred=None):
     model.eval()
     run_acc = AverageMeter()
-    start_time = time.time()
+    run_loss = 0.0
+    start_time = time.perf_counter()
     with torch.no_grad():
         for idx, batch_data in enumerate(loader):
             if isinstance(batch_data, list):
@@ -77,16 +85,29 @@ def val_epoch(model, loader, epoch, acc_func, args, model_inferer=None, post_lab
                 data, target = batch_data["image"], batch_data["label"]
             data, target = data.cuda(args.rank), target.cuda(args.rank)
             with autocast(enabled=args.amp):
+                inference_time = time.perf_counter()
                 if model_inferer is not None:
                     logits = model_inferer(data)
                 else:
                     logits = model(data)
+                print(f"Inference Time: {time.perf_counter() - inference_time}:.5f")
+
             if not logits.is_cuda:
                 target = target.cpu()
+
+            loss_time = time.perf_counter()
+            loss = loss_func(logits, target).cpu().item()
+            run_loss += loss
+            print(f"Loss Function Time: {time.perf_counter() - loss_time}:.5f")
+
+            decollate_time = time.perf_counter()
             val_labels_list = decollate_batch(target)
             val_labels_convert = [post_label(val_label_tensor) for val_label_tensor in val_labels_list]
             val_outputs_list = decollate_batch(logits)
             val_output_convert = [post_pred(val_pred_tensor) for val_pred_tensor in val_outputs_list]
+            print(f"Decollate Time: {time.perf_counter() - decollate_time}:.5f")
+
+            acc_time = time.perf_counter()
             acc_func.reset()
             acc_func(y_pred=val_output_convert, y=val_labels_convert)
             acc, not_nans = acc_func.aggregate()
@@ -101,6 +122,7 @@ def val_epoch(model, loader, epoch, acc_func, args, model_inferer=None, post_lab
 
             else:
                 run_acc.update(acc.cpu().numpy(), n=not_nans.cpu().numpy())
+            print(f"Acc Time: {time.perf_counter() - acc_time}:.5f")
 
             if args.rank == 0:
                 avg_acc = np.mean(run_acc.avg)
@@ -108,10 +130,10 @@ def val_epoch(model, loader, epoch, acc_func, args, model_inferer=None, post_lab
                     "Val {}/{} {}/{}".format(epoch, args.max_epochs, idx, len(loader)),
                     "acc",
                     avg_acc,
-                    "time {:.2f}s".format(time.time() - start_time),
+                    "time {:.2f}s".format(time.perf_counter() - start_time),
                 )
-            start_time = time.time()
-    return run_acc.avg
+            start_time = time.perf_counter()
+    return run_acc.avg, run_loss/len(loader)
 
 
 def save_checkpoint(model, epoch, args, filename="model.pt", best_acc=0, optimizer=None, scheduler=None):
@@ -154,7 +176,7 @@ def run_training(
             train_loader.sampler.set_epoch(epoch)
             torch.distributed.barrier()
         print(args.rank, time.ctime(), "Epoch:", epoch)
-        epoch_time = time.time()
+        epoch_time = time.perf_counter()
         train_loss = train_epoch(
             model, train_loader, optimizer, scaler=scaler, epoch=epoch, loss_func=loss_func, args=args
         )
@@ -162,7 +184,7 @@ def run_training(
             print(
                 "Final training  {}/{}".format(epoch, args.max_epochs - 1),
                 "loss: {:.4f}".format(train_loss),
-                "time {:.2f}s".format(time.time() - epoch_time),
+                "time {:.2f}s".format(time.perf_counter() - epoch_time),
             )
         if args.rank == 0 and writer is not None:
             writer.add_scalar("train_loss", train_loss, epoch)
@@ -170,12 +192,13 @@ def run_training(
         if (epoch + 1) % args.val_every == 0:
             if args.distributed:
                 torch.distributed.barrier()
-            epoch_time = time.time()
-            val_avg_acc = val_epoch(
+            epoch_time = time.perf_counter()
+            val_avg_acc, val_avg_loss = val_epoch(
                 model,
                 val_loader,
                 epoch=epoch,
                 acc_func=acc_func,
+                loss_func=loss_func,
                 model_inferer=model_inferer,
                 args=args,
                 post_label=post_label,
@@ -189,10 +212,11 @@ def run_training(
                     "Final validation  {}/{}".format(epoch, args.max_epochs - 1),
                     "acc",
                     val_avg_acc,
-                    "time {:.2f}s".format(time.time() - epoch_time),
+                    "time {:.2f}s".format(time.perf_counter() - epoch_time),
                 )
                 if writer is not None:
                     writer.add_scalar("val_acc", val_avg_acc, epoch)
+                    writer.add_scalar("val_loss", val_avg_loss, epoch)
                 if val_avg_acc > val_acc_max:
                     print("new best ({:.6f} --> {:.6f}). ".format(val_acc_max, val_avg_acc))
                     val_acc_max = val_avg_acc
@@ -208,7 +232,6 @@ def run_training(
                     shutil.copyfile(os.path.join(args.logdir, "model_final.pt"), os.path.join(args.logdir, "model.pt"))
 
         if scheduler is not None:
-            print(scaler.get_scale())
             scheduler.step()
 
     print("Training Finished !, Best Accuracy: ", val_acc_max)

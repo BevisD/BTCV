@@ -10,7 +10,7 @@ def main():
     feature_size = 48
 
     model = SwinUNETR(
-        img_size=96,
+        img_size=(32, 256, 256),
         in_channels=1,
         out_channels=out_channels,
         feature_size=feature_size,
@@ -31,7 +31,8 @@ def main():
     )
     model_dict["state_dict"][out_biases_key] = torch.randn(out_channels)
 
-    torch.save(model_dict, f"pretrained_models/swin_unetr_{out_channels}_channel.pt")
+    model.load_state_dict(model_dict["state_dict"], strict=True)
+    # torch.save(model_dict, f"pretrained_models/swin_unetr_{out_channels}_channel.pt")
 
 
 if __name__ == '__main__':

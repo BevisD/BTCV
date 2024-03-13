@@ -19,6 +19,8 @@ from monai import data, transforms
 from monai.data import load_decathlon_datalist
 from typing import Sequence
 
+from utils.transform_timer import transform_timer
+
 
 class Sampler(torch.utils.data.Sampler):
     def __init__(self, dataset, num_replicas=None, rank=None, shuffle=True, make_even=True):
@@ -117,30 +119,29 @@ def get_loader(args):
 
     train_transform = transforms.Compose(
         [
-            transforms.LoadImaged(keys=all_keys),
-            SelectChannelTransformd(keys=seg_keys, channels=[1]),
-            AddChanneld(keys=all_keys),
-            transforms.Orientationd(keys=all_keys, axcodes="RAS"),
-            transforms.Spacingd(keys=all_keys,
+            transform_timer(transforms.LoadImaged(keys=all_keys)),
+            transform_timer(SelectChannelTransformd(keys=seg_keys, channels=[1])),
+            transform_timer(AddChanneld(keys=all_keys)),
+            transform_timer(transforms.Orientationd(keys=all_keys, axcodes="RAS")),
+            transform_timer(transforms.Spacingd(keys=all_keys,
                                 pixdim=(args.space_x, args.space_y, args.space_z),
-                                mode=("bilinear", "nearest")),
-            transforms.ScaleIntensityRanged(
+                                mode=("bilinear", "nearest"))),
+            transform_timer(transforms.ScaleIntensityRanged(
                 keys=img_keys, a_min=args.a_min, a_max=args.a_max, b_min=args.b_min, b_max=args.b_max, clip=True
-            ),
-            # CROP HERE?
-            transforms.RandSpatialCropSamplesd(
+            )),
+            transform_timer(transforms.RandSpatialCropSamplesd(
                 keys=all_keys,
                 roi_size=(args.roi_x, args.roi_y, args.roi_z),
                 random_size=False,
                 num_samples=4,
-            ),
-            transforms.RandFlipd(keys=all_keys, prob=args.RandFlipd_prob, spatial_axis=0),
-            transforms.RandFlipd(keys=all_keys, prob=args.RandFlipd_prob, spatial_axis=1),
-            transforms.RandFlipd(keys=all_keys, prob=args.RandFlipd_prob, spatial_axis=2),
-            transforms.RandRotate90d(keys=all_keys, prob=args.RandRotate90d_prob, max_k=3),
-            transforms.RandScaleIntensityd(keys=img_keys, factors=0.1, prob=args.RandScaleIntensityd_prob),
-            transforms.RandShiftIntensityd(keys=img_keys, offsets=0.1, prob=args.RandShiftIntensityd_prob),
-            transforms.ToTensord(keys=all_keys),
+            )),
+            transform_timer(transforms.RandFlipd(keys=all_keys, prob=args.RandFlipd_prob, spatial_axis=0)),
+            transform_timer(transforms.RandFlipd(keys=all_keys, prob=args.RandFlipd_prob, spatial_axis=1)),
+            transform_timer(transforms.RandFlipd(keys=all_keys, prob=args.RandFlipd_prob, spatial_axis=2)),
+            transform_timer(transforms.RandRotate90d(keys=all_keys, prob=args.RandRotate90d_prob, max_k=3)),
+            transform_timer(transforms.RandScaleIntensityd(keys=img_keys, factors=0.1, prob=args.RandScaleIntensityd_prob)),
+            transform_timer(transforms.RandShiftIntensityd(keys=img_keys, offsets=0.1, prob=args.RandShiftIntensityd_prob)),
+            transform_timer(transforms.ToTensord(keys=all_keys)),
         ]
     )
     val_transform = transforms.Compose(

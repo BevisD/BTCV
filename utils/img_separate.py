@@ -3,7 +3,7 @@ import os
 
 
 def copy_img(filename, from_dir, to_dir, sub_folder="images"):
-    file = nib.load(os.join(from_dir, filename))
+    file = nib.load(os.path.join(from_dir, sub_folder, filename))
 
     data = file.get_fdata()
     pre, post = data
@@ -17,7 +17,7 @@ def copy_img(filename, from_dir, to_dir, sub_folder="images"):
 
 def main():
     from_dir = "/bask/projects/p/phwq4930-gbm/Thomas/miab_data_base/raw_data/NeOv_main_sites_cropped/"
-    to_dir = "/bask/projects/p/phwq4930-gbm/Bevis"
+    to_dir = "/bask/projects/p/phwq4930-gbm/Bevis/NeOv_omentum_cropped"
 
     image_names = os.listdir(os.path.join(from_dir, "images"))
     label_names = os.listdir(os.path.join(from_dir, "labels"))
@@ -25,7 +25,7 @@ def main():
     for i, image_name in enumerate(image_names):
         print(f"Copying image {image_name} {i}/{len(image_names)}")
         copy_img(filename=image_name,
-                 from_dir=os.path.join(from_dir, image_name),
+                 from_dir=from_dir,
                  to_dir=to_dir,
                  sub_folder="images"
                  )
@@ -33,7 +33,7 @@ def main():
     for i, label_name in enumerate(label_names):
         print(f"Copying label {label_name} {i}/{len(label_names)}")
         copy_img(filename=label_name,
-                 from_dir=os.path.join(from_dir, label_name),
+                 from_dir=from_dir,
                  to_dir=to_dir,
                  sub_folder="labels"
                  )

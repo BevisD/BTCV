@@ -33,7 +33,7 @@ from monai.utils.enums import MetricReduction
 
 parser = argparse.ArgumentParser(description="Swin UNETR segmentation pipeline")
 parser.add_argument("--checkpoint", default=None, help="start training from saved checkpoint")
-parser.add_argument("--logdir", default="E74B4", type=str, help="directory to save the tensorboard logs")
+parser.add_argument("--logdir", default="test", type=str, help="directory to save the tensorboard logs")
 parser.add_argument(
     "--pretrained_dir", default="./pretrained_models/", type=str, help="pretrained checkpoint directory"
 )
@@ -66,8 +66,8 @@ parser.add_argument("--feature_size", default=48, type=int, help="feature size")
 parser.add_argument("--in_channels", default=1, type=int, help="number of input channels")
 parser.add_argument("--out_channels", default=14, type=int, help="number of output channels")
 parser.add_argument("--use_normal_dataset", action="store_true", help="use monai Dataset class")
-parser.add_argument("--a_min", default=-1220.0, type=float, help="a_min in ScaleIntensityRanged")
-parser.add_argument("--a_max", default=3500.0, type=float, help="a_max in ScaleIntensityRanged")
+parser.add_argument("--a_min", default=-150.0, type=float, help="a_min in ScaleIntensityRanged")
+parser.add_argument("--a_max", default=200.0, type=float, help="a_max in ScaleIntensityRanged")
 parser.add_argument("--b_min", default=0.0, type=float, help="b_min in ScaleIntensityRanged")
 parser.add_argument("--b_max", default=1.0, type=float, help="b_max in ScaleIntensityRanged")
 parser.add_argument("--space_x", default=1.0, type=float, help="spacing in x direction")
@@ -78,6 +78,7 @@ parser.add_argument("--roi_y", default=96, type=int, help="roi size in y directi
 parser.add_argument("--roi_z", default=96, type=int, help="roi size in z direction")
 parser.add_argument("--dropout_rate", default=0.0, type=float, help="dropout rate")
 parser.add_argument("--dropout_path_rate", default=0.0, type=float, help="drop path rate")
+parser.add_argument("--dropout_attn_rate", default=0.0, type=float, help="drop attention rate")
 parser.add_argument("--RandFlipd_prob", default=0.2, type=float, help="RandFlipd aug probability")
 parser.add_argument("--RandRotate90d_prob", default=0.2, type=float, help="RandRotate90d aug probability")
 parser.add_argument("--RandScaleIntensityd_prob", default=0.1, type=float, help="RandScaleIntensityd aug probability")
@@ -126,12 +127,18 @@ def main_worker(gpu, args):
     if args.rank == 0:
         print("Batch size is:", args.batch_size, "epochs", args.max_epochs)
         print("Learning rate:", args.optim_lr)
+        print("Val every:", args.val_every)
+        print("Out Channels:", args.out_channels)
         print("a_min:", args.a_min, "a_max:", args.a_max)
         print("b_min:", args.b_min, "b_max:", args.b_max)
-        print(f"Pix-dim: ({args.space_x:.2f}, {args.space_y:.2f}, {args.space_z}:2f)")
+        print(f"Patch-Size: ({args.roi_x}, {args.roi_y}, {args.roi_z})")
+        print(f"Pix-dim: ({args.space_x:.2f}, {args.space_y:.2f}, {args.space_z:.2f})")
         print(f"Dropout: {args.dropout_rate}")
+        print(f"Attn Drop: {args.dropout_attn_rate}")
+        print(f"Path Drop: {args.dropout_path_rate}")
         print(f"Warmup Epochs: {args.warmup_epochs}")
         print(f"Squared Dice: {args.squared_dice}")
+        print(f"Using {'normal' if args.use_normal_dataset else 'cached'} dataset")
     inf_size = [args.roi_x, args.roi_y, args.roi_z]
 
     # Loading Pretrained Model
@@ -141,8 +148,8 @@ def main_worker(gpu, args):
         in_channels=args.in_channels,
         out_channels=args.out_channels,
         feature_size=args.feature_size,
-        drop_rate=0.0,
-        attn_drop_rate=0.0,
+        drop_rate=args.dropout_rate,
+        attn_drop_rate=args.dropout_attn_rate,
         dropout_path_rate=args.dropout_path_rate,
         use_checkpoint=args.use_checkpoint,
     )

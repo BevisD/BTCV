@@ -1,3 +1,4 @@
+import csv
 import os
 import argparse
 
@@ -28,8 +29,8 @@ parser.add_argument("--feature_size", default=48, type=int, help="feature size")
 parser.add_argument("--infer_overlap", default=0.5, type=float, help="sliding window inference overlap")
 parser.add_argument("--in_channels", default=1, type=int, help="number of input channels")
 parser.add_argument("--out_channels", default=14, type=int, help="number of output channels")
-parser.add_argument("--a_min", default=-1220.0, type=float, help="a_min in ScaleIntensityRanged")
-parser.add_argument("--a_max", default=3500.0, type=float, help="a_max in ScaleIntensityRanged")
+parser.add_argument("--a_min", default=-150.0, type=float, help="a_min in ScaleIntensityRanged")
+parser.add_argument("--a_max", default=200.0, type=float, help="a_max in ScaleIntensityRanged")
 parser.add_argument("--b_min", default=0.0, type=float, help="b_min in ScaleIntensityRanged")
 parser.add_argument("--b_max", default=1.0, type=float, help="b_max in ScaleIntensityRanged")
 parser.add_argument("--space_x", default=1.0, type=float, help="spacing in x direction")
@@ -47,6 +48,7 @@ parser.add_argument("--RandScaleIntensityd_prob", default=0.0, type=float, help=
 parser.add_argument("--RandShiftIntensityd_prob", default=0.0, type=float, help="RandShiftIntensityd aug probability")
 parser.add_argument("--spatial_dims", default=3, type=int, help="spatial dimension of input data")
 parser.add_argument("--use_checkpoint", action="store_true", help="use gradient checkpointing to save memory")
+parser.add_argument("--save_outputs", action="store_true", help="save output segmentations")
 
 
 def main():
@@ -83,6 +85,7 @@ def main():
     model.eval()
     model.to(device)
 
+    metrics = []
     with torch.no_grad():
         for i, batch in enumerate(val_loader):
             val_inputs, val_labels = batch["image"], batch["label"]
@@ -94,7 +97,8 @@ def main():
             original_affine = batch["label_meta_dict"]["affine"][0].numpy()
 
             img_name = batch["image_meta_dict"]["filename_or_obj"][0].split("/")[-1]
-            print(f"Inference on case {img_name}")
+            pre_post = batch["image_meta_dict"]["filename_or_obj"][0].split("/")[-3]
+            print(f"Inference on case {pre_post}/{img_name}")
             val_outputs = sliding_window_inference(
                 val_inputs, (args.roi_x, args.roi_y, args.roi_z), 4, model, overlap=args.infer_overlap, mode="gaussian"
             )
@@ -108,14 +112,31 @@ def main():
             dice_acc.reset()
             dice_acc(y_pred=val_outputs, y=val_labels)
             acc, not_nans = dice_acc.aggregate()
-            print("Mean Site Dice: {}".format(acc.item()))
+            print(f"Mean Site Dice: {acc.item():.4f} Not Nans # {not_nans.item():.0f}")
 
-            nib.save(
-                nib.Nifti1Image(
+            if args.save_outputs:
+                nifti_image = nib.Nifti1Image(
                     val_outputs.cpu().numpy().astype(np.int8)[0, 0],
-                    original_affine),
-                os.path.join(output_directory, img_name)
-            )
+                    original_affine
+                )
+                nib.save(
+                    nifti_image,
+                    os.path.join(output_directory, img_name)
+                )
+
+            metrics.append({
+                "pre_post": pre_post,
+                "filename": img_name,
+                "dice": acc.item(),
+                "nan": not bool(not_nans.item())
+            })
+
+    with open(os.path.join(output_directory, "metrics.csv"), "w+") as csv_file:
+        writer = csv.DictWriter(csv_file, fieldnames=list(metrics[0].keys()))
+        writer.writeheader()
+
+        for metric in metrics:
+            writer.writerow(metric)
 
 
 if __name__ == '__main__':
